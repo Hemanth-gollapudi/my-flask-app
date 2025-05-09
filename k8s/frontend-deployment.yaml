@@ -18,7 +18,7 @@ spec:
         - name: frontend
           image: hemanthkumar21/my-flask-frontend:latest
           ports:
-            - containerPort: 80  # Exposing port 80 for Nginx
+            - containerPort: 80
 ---
 apiVersion: v1
 kind: Service
@@ -27,8 +27,9 @@ metadata:
 spec:
   selector:
     app: frontend
+  type: NodePort
   ports:
     - protocol: TCP
-      port: 9090        # Exposing port 9090 on the service
-      targetPort: 80    # Targeting port 80 on the container where Nginx is listening
-  type: LoadBalancer
+      port: 9090
+      targetPort: 80
+      nodePort: 30910
