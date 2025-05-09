@@ -19,13 +19,18 @@ pipeline {
 
         stage('Clean Old Containers') {
             steps {
-                sh 'docker rm -f frontend backend || true'
+                bat '''
+                docker rm -f frontend || echo "No frontend container"
+                docker rm -f backend || echo "No backend container"
+                '''
             }
         }
 
         stage('Build and Deploy') {
             steps {
-                sh 'docker-compose up --build -d'
+                dir("${WORKSPACE}") {
+                    bat 'docker-compose -f docker-compose.yml up --build -d'
+                }
             }
         }
     }
