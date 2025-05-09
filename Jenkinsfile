@@ -1,10 +1,6 @@
 pipeline {
     agent any
 
-    triggers {
-        pollSCM('* * * * *')
-    }
-
     environment {
         REPO_URL = 'https://github.com/Hemanth-gollapudi/my-flask-app.git'
         BRANCH_NAME = 'main'
@@ -17,48 +13,67 @@ pipeline {
             }
         }
 
-        stage('Clean Old Containers and Images') {
+        stage('Clean Old Containers') {
             steps {
-                bat '''
-                docker stop frontend || exit 0
-                docker rm frontend || exit 0
-                docker stop backend || exit 0
-                docker rm backend || exit 0
-
-                docker rmi -f fullstack-frontend || exit 0
-                docker rmi -f fullstack-backend || exit 0
-                '''
+                script {
+                    // Clean old containers if any exist
+                    sh 'docker rm -f frontend || echo "No frontend container"'
+                    sh 'docker rm -f backend || echo "No backend container"'
+                }
             }
         }
 
-        stage('Build Backend Image') {
+        stage('Build Docker Images') {
             steps {
-                bat 'docker build --no-cache -t fullstack-backend ./backend'
+                script {
+                    // Build frontend and backend Docker images
+                    sh 'docker build -t hemanthkumar21/my-flask-frontend:latest ./frontend'
+                    sh 'docker build -t hemanthkumar21/my-flask-backend:latest ./backend'
+                }
             }
         }
 
-        stage('Build Frontend Image') {
+        stage('Login to DockerHub') {
             steps {
-                bat 'docker build --no-cache -t fullstack-frontend ./frontend'
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    script {
+                        // Log in to DockerHub
+                        sh "docker login -u ${DOCKER_USER} -p ${DOCKER_PASS}"
+                    }
+                }
             }
         }
 
-        stage('Run Final Containers') {
+        stage('Push Images to DockerHub') {
             steps {
-                bat '''
-                docker run -d -p 9000:9000 --name backend fullstack-backend
-                docker run -d -p 9090:80 --name frontend fullstack-frontend
-                '''
+                script {
+                    // Tag and push images to DockerHub
+                    sh 'docker push hemanthkumar21/my-flask-frontend:latest'
+                    sh 'docker push hemanthkumar21/my-flask-backend:latest'
+                }
+            }
+        }
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                withCredentials([file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG_FILE')]) {
+                    script {
+                        // Set the Kubernetes config
+                        sh 'export KUBECONFIG=${KUBECONFIG_FILE}'
+                        // Apply Kubernetes configurations
+                        sh 'kubectl apply -f k8s/'
+                    }
+                }
             }
         }
     }
 
     post {
         success {
-            echo '✅ Deployment successful!'
+            echo '✅ Build, Docker push, and Kubernetes deployment completed!'
         }
         failure {
-            echo '❌ Something went wrong!'
+            echo '❌ Deployment failed.'
         }
     }
 }
